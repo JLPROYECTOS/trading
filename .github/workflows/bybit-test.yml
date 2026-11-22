@@ -1,0 +1,64 @@
+# Prueba: ¿acepta Bybit EU conexiones desde los servidores de GitHub?
+# Solo LEE: no envía órdenes. No imprime saldos ni claves (los registros de un repo público son públicos).
+name: Prueba conexion Bybit EU
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar Bybit EU
+        env:
+          BYBIT_API_KEY: ${{ secrets.BYBIT_API_KEY }}
+          BYBIT_API_SECRET: ${{ secrets.BYBIT_API_SECRET }}
+        shell: python
+        run: |
+          import hashlib, hmac, json, os, time, urllib.request, urllib.error
+
+          def call(url, headers=None):
+              req = urllib.request.Request(url, headers=dict({"User-Agent": "gh-bybit-check/1.0"}, **(headers or {})))
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return r.status, json.loads(r.read().decode())
+              except urllib.error.HTTPError as e:
+                  return e.code, None
+              except Exception as e:
+                  return None, str(e)
+
+          ok = True
+          print("== 1. Datos públicos de Bybit EU ==")
+          code, data = call("https://api.bybit.eu/v5/market/tickers?category=spot&symbol=BTCUSDC")
+          if code == 200 and data and data.get("retCode") == 0:
+              print("OK: Bybit EU responde a los servidores de GitHub.")
+          else:
+              ok = False
+              print("BLOQUEADO o error (HTTP %s). Bybit EU no acepta conexiones desde aquí." % code)
+
+          print("== 2. Tu clave (solo lectura de cuenta, sin mostrar importes) ==")
+          key, sec = os.environ.get("BYBIT_API_KEY", ""), os.environ.get("BYBIT_API_SECRET", "")
+          if not key or not sec:
+              ok = False
+              print("FALTAN los secrets BYBIT_API_KEY y/o BYBIT_API_SECRET en el repositorio.")
+          else:
+              ts, rw, q = str(int(time.time() * 1000)), "10000", "accountType=UNIFIED"
+              sign = hmac.new(sec.encode(), (ts + key + rw + q).encode(), hashlib.sha256).hexdigest()
+              code, data = call("https://api.bybit.eu/v5/account/wallet-balance?" + q, {
+                  "X-BAPI-API-KEY": key, "X-BAPI-TIMESTAMP": ts, "X-BAPI-RECV-WINDOW": rw,
+                  "X-BAPI-SIGN": sign, "X-BAPI-SIGN-TYPE": "2"})
+              if code == 200 and data and data.get("retCode") == 0:
+                  print("OK: Bybit EU acepta tu clave desde GitHub.")
+              else:
+                  ok = False
+                  msg = data.get("retMsg") if isinstance(data, dict) else data
+                  print("RECHAZADO (HTTP %s): %s" % (code, msg))
+                  print("Si tu clave está restringida por IP, GitHub no podrá usarla.")
+
+          print()
+          print("RESULTADO: " + ("✅ Se puede usar GitHub como servidor." if ok else "❌ No se puede usar GitHub como servidor."))
+          if not ok:
+              raise SystemExit(1)
