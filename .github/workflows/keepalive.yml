@@ -1,0 +1,23 @@
+# Mantiene despierto el servidor gratuito de Render (se duerme tras 15 min sin visitas).
+# Necesita la variable del repositorio APP_URL (Settings → Secrets and variables → Actions → Variables),
+# por ejemplo: https://senales-trading-xxxx.onrender.com
+name: Mantener despierto
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Visitar /healthz
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then echo "::warning::Falta la variable APP_URL"; exit 0; fi
+          curl -fsS --retry 3 --retry-delay 10 --max-time 60 "$APP_URL/healthz" && echo " OK"
