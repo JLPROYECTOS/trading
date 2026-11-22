@@ -76,6 +76,10 @@ main{max-width:560px;margin:0 auto;padding:0 16px 40px}
 .stat .t{color:var(--muted);font-size:12px}
 .stat .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
 .money .row .k{color:var(--muted)}
+.checks{background:var(--up-bg);border-radius:14px;padding:10px 12px;margin:0 0 12px}
+.checks .t{color:var(--up);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.chk{font-size:13px;padding:2px 0}
+.st.closed{background:var(--card2);color:var(--ink)}
 details.why{margin-top:10px;color:var(--muted);font-size:14px}
 details.why summary{cursor:pointer;color:var(--ink);font-weight:600;padding:6px 0}
 .timer{display:flex;justify-content:space-between;align-items:center;margin:14px 0 10px;color:var(--muted);font-size:14px}

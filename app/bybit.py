@@ -25,16 +25,26 @@ DEFAULTS = {
     "QUOTE": "USDC",          # moneda con la que se opera
     "MAX_LEVERAGE": "4",      # apalancamiento máximo de las propuestas (margen spot)
     "RISK_PCT": "10",         # % del capital que se pierde como máximo si salta el stop
-    "SIGNAL_INTERVAL": "60",  # velas (min) en las que se buscan señales
-    "SCAN_EVERY_MIN": "5",    # cada cuánto mira el motor si hay vela nueva
+    "SIGNAL_INTERVAL": "5",   # velas (min) en las que se buscan señales
+    "SCAN_EVERY_MIN": "5",    # máximo entre comprobaciones del motor
+    "LOOKBACK": "3000",       # velas de historia para simulación (3000 x 5 min ≈ 10 días)
     "MIN_TURNOVER": "20000",  # volumen 24h mínimo del par (en QUOTE)
     "MIN_EV_R": "0.10",       # resultado esperado mínimo (en R) para notificar
-    "MIN_HIST_N": "8",        # veces mínimas que la regla debe haberse dado en el histórico
+    "MIN_HIST_N": "15",       # veces mínimas que la regla debe haberse dado en el histórico
     "SL_ATR": "1.5",          # stop a 1,5 ATR
+    "MIN_STOP_PCT": "0.6",    # stop mínimo (%) para que las comisiones no se coman la operación
     "TP_R": "2",              # objetivo a 2R
-    "HORIZON_H": "24",        # horizonte de la simulación
+    "HORIZON_H": "4",         # horizonte de la simulación (horas)
     "FEE_PCT": "0.1",         # comisión por lado
-    "EXPIRES_MIN": "15",      # minutos para autorizar una señal
+    "EXPIRES_MIN": "10",      # minutos para autorizar una señal
+    # Filtros (inspirados en trader-scanner / entry / news)
+    "TREND_INTERVAL": "60",   # confirmación de tendencia en velas de 1 h
+    "MAX_SPREAD_PCT": "0.15", # spread máximo del par
+    "SHOCK_PCT": "1.5",       # pausa si BTC se mueve más de esto en 15 min
+    # Gestor de riesgo (inspirado en trader-risk)
+    "MAX_OPEN": "1",          # posiciones abiertas a la vez
+    "MAX_TRADES_DAY": "3",    # operaciones ejecutadas por día
+    "DAILY_RISK_PCT": "25",   # suma máxima de pérdidas posibles (al stop) en el día, % del capital
     "ENGINE": "on",
 }
 

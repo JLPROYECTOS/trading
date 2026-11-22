@@ -156,7 +156,9 @@ def state():
         "env": cfg["BYBIT_ENV"], "real": cfg["BYBIT_ENV"] in bybit.REAL_MONEY,
         "configured": configured, "pin_set": bool(cfg.get("APP_PIN")),
         "config": {k: cfg[k] for k in ("QUOTE", "MAX_LEVERAGE", "RISK_PCT", "SIGNAL_INTERVAL", "MIN_EV_R",
-                                       "SL_ATR", "TP_R", "HORIZON_H", "EXPIRES_MIN")},
+                                       "SL_ATR", "TP_R", "HORIZON_H", "EXPIRES_MIN", "MIN_STOP_PCT",
+                                       "MAX_SPREAD_PCT", "SHOCK_PCT", "MAX_OPEN", "MAX_TRADES_DAY",
+                                       "DAILY_RISK_PCT", "TREND_INTERVAL")},
         "push": {"available": PUSH_OK, "devices": len(load_subs())},
         "engine": ENGINE.status if ENGINE else None,
         "pending": pending, "prices": prices,
@@ -267,6 +269,20 @@ def approve(sid, pin):
         _update(sid, status="expired", error="El precio se movió demasiado (%s → %s)." % (entry, price))
         raise AppError("El precio se ha movido demasiado desde la señal (%s → %s). Señal anulada." % (entry, price))
 
+    # Gestor de riesgo otra vez justo antes de enviar (por si algo cambió desde la señal)
+    try:
+        wallet, orders = bybit.wallet(cfg), bybit.open_orders(cfg)
+    except bybit.BybitError as e:
+        _update(sid, status="pending")
+        raise AppError(str(e))
+    with eng.LOCK:
+        others = [x for x in eng.load_signals() if x["id"] != sid]
+    blocked, _ = eng.risk_check(cfg, others, wallet, orders)
+    if blocked:
+        _update(sid, status="expired", error="Gestor de riesgo: " + blocked)
+        raise AppError("Gestor de riesgo: %s. Señal anulada." % blocked)
+    equity_before = wallet["equity"]
+
     slip = 0.003
     limit = st.round_level(price * (1 + slip), s["tick"], "up") if long_ else st.round_level(price * (1 - slip), s["tick"], "down")
     order = {"category": "spot", "symbol": s["symbol"], "side": "Buy" if long_ else "Sell",
@@ -274,7 +290,8 @@ def approve(sid, pin):
              "isLeverage": 1 if (s["leverage"] > 1 or not long_) else 0,
              "takeProfit": s["target"], "stopLoss": s["stop"],
              "tpOrderType": "Market", "slOrderType": "Market", "orderLinkId": s["id"]}
-    _update(sid, status="sending", approved_at=eng.iso(eng.now()), price_at_approval=price, order=order)
+    _update(sid, status="sending", approved_at=eng.iso(eng.now()), price_at_approval=price, order=order,
+            equity_before=equity_before)
     try:
         res = bybit.private(cfg, "POST", "/v5/order/create", order)
     except bybit.BybitError as e:
@@ -440,8 +457,8 @@ def main():
     ENGINE = eng.Engine(notify=notify)
     ENGINE.start()
     srv = ThreadingHTTPServer((host, port), Handler)
-    print("App de señales en http://127.0.0.1:%d  (entorno: %s%s)" % (
-        port, cfg["BYBIT_ENV"].upper(), ", DINERO REAL" if cfg["BYBIT_ENV"] in bybit.REAL_MONEY else ""))
+    print("App de señales en http://%s:%d  (entorno: %s%s)" % (
+        host, port, cfg["BYBIT_ENV"].upper(), ", DINERO REAL" if cfg["BYBIT_ENV"] in bybit.REAL_MONEY else ""))
     print("Notificaciones push: %s" % ("sí" if PUSH_OK else "no (pip install -r requirements.txt)"))
     print("Configuración: %s" % bybit.ENV_FILE)
     try:

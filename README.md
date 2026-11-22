@@ -51,11 +51,18 @@ Android (app instalada) ──HTTPS privado (Tailscale)──▶ tu PC: server.p
 | `APP_PIN` | — | PIN para autorizar cada orden. |
 | `MAX_LEVERAGE` | `4` | Apalancamiento máximo (margen spot). |
 | `RISK_PCT` | `10` | % del capital que se pierde como máximo si salta el stop. |
-| `SIGNAL_INTERVAL` | `60` | Velas en minutos (15, 60, 240…). |
+| `SIGNAL_INTERVAL` | `5` | Velas en minutos (5, 15, 60…). |
+| `LOOKBACK` / `HORIZON_H` | `3000` / `4` | Velas de historia (~10 días) y horizonte de la simulación. |
 | `SL_ATR` / `TP_R` | `1.5` / `2` | Stop a 1,5 ATR; objetivo a 2 veces el riesgo. |
+| `MIN_STOP_PCT` | `0.6` | Stop mínimo, para que las comisiones no se coman la operación. |
 | `MIN_EV_R` | `0.10` | Resultado esperado mínimo de la simulación para avisar. |
-| `MIN_HIST_N` | `8` | Veces mínimas que la regla debe haberse dado antes. |
-| `EXPIRES_MIN` | `15` | Minutos para autorizar antes de que caduque. |
+| `MIN_HIST_N` | `15` | Veces mínimas que la regla debe haberse dado antes. |
+| `EXPIRES_MIN` | `10` | Minutos para autorizar antes de que caduque. |
+| `TREND_INTERVAL` | `60` | Confirmación: largos solo con tendencia de 1 h alcista; cortos, bajista. |
+| `MAX_SPREAD_PCT` | `0.15` | Descarta pares con spread mayor. |
+| `SHOCK_PCT` | `1.5` | Pausa si BTC se mueve más de esto en 15 min. |
+| `MAX_OPEN` / `MAX_TRADES_DAY` | `1` / `3` | Posiciones a la vez y operaciones por día. |
+| `DAILY_RISK_PCT` | `25` | Suma máxima de pérdidas posibles en el día (% del capital). |
 | `ENGINE` | `on` | `off` para parar el motor. |
 
 ## Seguridad

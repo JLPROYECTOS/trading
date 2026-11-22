@@ -68,8 +68,21 @@ def detect(bars):
     return out
 
 
-def levels(entry, side, atr_v, sl_atr, tp_r):
-    dist = sl_atr * atr_v
+def trend(bars):
+    """Tendencia de un marco superior: 'up', 'down' o 'flat' (precio vs EMA20 vs EMA50)."""
+    if len(bars) < 50:
+        return "flat"
+    closes = [b["c"] for b in bars]
+    c, e20, e50 = closes[-1], ema(closes, 20)[-1], ema(closes, 50)[-1]
+    if c > e20 > e50:
+        return "up"
+    if c < e20 < e50:
+        return "down"
+    return "flat"
+
+
+def levels(entry, side, atr_v, sl_atr, tp_r, min_stop_pct=0.0):
+    dist = max(sl_atr * atr_v, entry * min_stop_pct / 100)
     if side == "long":
         return entry - dist, entry + tp_r * dist
     return entry + dist, entry - tp_r * dist
@@ -142,19 +155,20 @@ def simulate(bars, entry, stop, target, side, steps, fee, runs=4000, seed=7):
     }
 
 
-def rule_history(bars, rule, side, steps, fee, sl_atr, tp_r):
+def rule_history(bars, rule, side, steps, fee, sl_atr, tp_r, min_stop_pct=0.0):
     """Cada vez que ESTA regla se activó en el pasado: mismos SL/TP (en ATR de ese momento),
     resultado real de las velas siguientes. Devuelve n, % objetivo, % stop y R medio."""
     cnt = {"target": 0, "stop": 0, "open": 0}
     rs = []
     for i in range(60, len(bars) - steps - 1):
-        if (rule, side) not in detect(bars[:i + 1]):
+        # ventana de 250 velas: suficiente para EMA50/RSI y mucho más rápido que todo el histórico
+        if (rule, side) not in detect(bars[max(0, i - 250):i + 1]):
             continue
         e = bars[i]["c"]
         a = atr(bars[max(0, i - 200):i + 1])
         if not a:
             continue
-        sl, tp = levels(e, side, a, sl_atr, tp_r)
+        sl, tp = levels(e, side, a, sl_atr, tp_r, min_stop_pct)
         res, exitp = "open", bars[i + steps]["c"]
         for b in bars[i + 1:i + 1 + steps]:
             hit = _hit(side, b["h"], b["l"], sl, tp)

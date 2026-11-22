@@ -63,9 +63,12 @@ function render() {
 
   renderWallet(); renderOrders(); renderHistory(); renderEngine();
   const c = S.config;
-  $("#cfg").innerHTML = `Velas de ${c.SIGNAL_INTERVAL} min · stop ${c.SL_ATR} ATR · objetivo ${c.TP_R}R · riesgo ${c.RISK_PCT} % por operación ·
-    apalancamiento máx. ${c.MAX_LEVERAGE}x · solo señales con ≥ ${c.MIN_EV_R}R esperado · caducan a los ${c.EXPIRES_MIN} min ·
-    notificaciones en ${S.push.devices} dispositivo(s)`;
+  $("#cfg").innerHTML = `<b>Señales:</b> velas de ${c.SIGNAL_INTERVAL} min, confirmadas con la tendencia de ${c.TREND_INTERVAL} min · stop ${c.SL_ATR} ATR (mín. ${c.MIN_STOP_PCT} %) ·
+    objetivo ${c.TP_R}R · simulación a ${c.HORIZON_H} h · solo con ≥ ${c.MIN_EV_R}R esperado · caducan a los ${c.EXPIRES_MIN} min<br>
+    <b>Filtros:</b> spread ≤ ${c.MAX_SPREAD_PCT} % · pausa si BTC se mueve > ${c.SHOCK_PCT} % en 15 min<br>
+    <b>Riesgo:</b> ${c.RISK_PCT} % del capital por operación · apalancamiento máx. ${c.MAX_LEVERAGE}x · ${c.MAX_OPEN} posición a la vez ·
+    ${c.MAX_TRADES_DAY} operaciones/día · riesgo diario ≤ ${c.DAILY_RISK_PCT} %<br>
+    Notificaciones en ${S.push.devices} dispositivo(s)`;
 }
 
 function renderSignals() {
@@ -104,6 +107,7 @@ function sigCard(s) {
       <div class="stat"><div class="t">Resultado esperado</div><div class="n">${sim.ev_r >= 0 ? "+" : ""}${nf(sim.ev_r, 2)}R</div></div>
       <div class="stat"><div class="t">Esta regla antes</div><div class="n">${pc(sim.hist_target)}</div><div class="t">llegó al objetivo · ${sim.hist_n} veces en ${sim.days} días · ${sim.hist_ev_r >= 0 ? "+" : ""}${nf(sim.hist_ev_r, 2)}R</div></div>
     </div>
+    ${(s.checks || []).length ? `<div class="checks"><div class="t">Filtros superados</div>${s.checks.map(c => `<div class="chk">✓ ${esc(c)}</div>`).join("")}</div>` : ""}
     <div class="money">
       <div class="row"><span class="k">Tamaño</span><span class="v">${esc(s.qty)} ${esc(s.base)} · ${usd(s.notional)}</span></div>
       <div class="row"><span class="k">Si salta el stop</span><span class="v neg">−${usd(s.loss)} (${nf(s.loss / s.equity * 100, 1)} % del capital)</span></div>
@@ -172,13 +176,14 @@ function renderOrders() {
     : `<div class="muted">Ninguna.</div>`;
 }
 
-const ST = {filled: "EJECUTADA", sent: "ENVIADA", failed: "FALLÓ", not_filled: "NO EJECUTADA", rejected: "DESCARTADA",
+const ST = {closed: "CERRADA", filled: "ABIERTA", sent: "ENVIADA", failed: "FALLÓ", not_filled: "NO EJECUTADA", rejected: "DESCARTADA",
             expired: "CADUCADA", sending: "ENVIANDO", checking: "COMPROBANDO"};
 function renderHistory() {
   const h = S.history;
   $("#history").innerHTML = h.length ? h.map(s => `<div class="hist">
       <div><div><b>${s.side === "long" ? "Largo" : "Corto"} ${esc(s.base)}</b> <span class="muted">· ${esc(s.rule_name)} · ${nf(s.leverage, 1)}x</span></div>
         <div class="m">${dt(s.approved_at || s.rejected_at || s.created)}${s.fill_price ? " · " + esc(s.fill_qty) + " a " + esc(s.fill_price) : ""}</div>
+        ${s.status === "closed" ? `<div class="m ${s.pnl >= 0 ? "pos" : "neg"}">Resultado: ${s.pnl >= 0 ? "+" : "−"}${usd(Math.abs(s.pnl))}</div>` : ""}
         ${s.warning ? `<div class="m neg">${esc(s.warning)}</div>` : ""}${s.error ? `<div class="m">${esc(s.error)}</div>` : ""}</div>
       <span class="st ${esc(s.status)}">${ST[s.status] || esc(s.status)}</span></div>`).join("")
     : `<div class="empty-s">Sin operaciones todavía.</div>`;
@@ -190,6 +195,7 @@ function renderEngine() {
   const d = e.discarded || [];
   $("#engine").innerHTML = `
     <div class="row"><span class="muted">Estado</span><span class="v">${esc(e.state)}</span></div>
+    ${e.paused ? `<div class="row"><span class="muted">En pausa</span><span class="v neg">${esc(e.paused)}</span></div>` : ""}
     <div class="row"><span class="muted">Última revisión</span><span class="v">${hm(e.last_scan)}</span></div>
     <div class="row"><span class="muted">Próxima</span><span class="v">${hm(e.next_scan)}</span></div>
     <div class="row"><span class="muted">Pares vigilados</span><span class="v">${e.pairs}</span></div>

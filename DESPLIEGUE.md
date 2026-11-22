@@ -23,7 +23,15 @@ No contiene claves: están en la carpeta `datos-trading` (al lado de `trading`),
 
 ---
 
-## Opción A — Render (fácil, ~7 $/mes)
+## Opción A — Render (gratis) ✅ EN USO
+
+Desplegada en **https://senales-trading-nhj3.onrender.com** (Frankfurt, plan gratis).
+Para que no se duerma: variable del repo `APP_URL` = esa dirección
+(GitHub → Settings → Secrets and variables → Actions → Variables). La tarea
+`.github/workflows/keepalive.yml` la visita cada 10 min.
+En el plan gratis los datos (historial, señales pendientes) se borran si el servidor se reinicia.
+
+Pasos originales (para volver a crearla):
 
 1. Crea cuenta en https://render.com (con tu GitHub).
 2. **New → Blueprint** → elige el repo `JLPROYECTOS/trading`. Render lee `render.yaml`:
