@@ -1,0 +1,26 @@
+# Render Blueprint: crea el servicio en Frankfurt (Bybit EU bloquea servidores de EE. UU.).
+# Las claves se piden al crear el servicio (sync: false = no están en el repo).
+services:
+  - type: web
+    name: senales-trading
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: BYBIT_ENV
+        value: eu
+      - key: BYBIT_API_KEY
+        sync: false
+      - key: BYBIT_API_SECRET
+        sync: false
+      - key: APP_PIN
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: MAX_LEVERAGE
+        value: "4"

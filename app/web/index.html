@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Señales</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/icons/icon-192.png" alt=""><span>Señales</span></div>
+  <span id="env" class="env">…</span>
+</header>
+
+<main>
+  <section class="equity">
+    <div class="label">Capital</div>
+    <div class="big" id="equity">—</div>
+    <div class="sub" id="equity-sub"></div>
+  </section>
+
+  <div id="alerts"></div>
+
+  <section id="signals"></section>
+
+  <section class="block">
+    <h2>Cartera</h2>
+    <div class="card" id="wallet"><div class="muted">—</div></div>
+  </section>
+
+  <section class="block">
+    <h2>Órdenes abiertas · SL / TP</h2>
+    <div class="card" id="orders"><div class="muted">—</div></div>
+  </section>
+
+  <section class="block">
+    <h2>Historial</h2>
+    <div class="card" id="history"><div class="empty-s">Sin operaciones todavía.</div></div>
+  </section>
+
+  <section class="block">
+    <h2>Motor de señales</h2>
+    <div class="card" id="engine"><div class="muted">—</div></div>
+  </section>
+
+  <section class="block">
+    <h2>Ajustes</h2>
+    <div class="card settings">
+      <button class="btn" id="btn-install" hidden>📲 Instalar la app</button>
+      <button class="btn" id="btn-push">🔔 Activar notificaciones</button>
+      <button class="btn ghost" id="btn-test">Enviar notificación de prueba</button>
+      <button class="btn ghost" id="btn-scan">Revisar el mercado ahora</button>
+      <div class="cfg" id="cfg"></div>
+    </div>
+  </section>
+
+  <p class="foot">Las señales son reglas mecánicas filtradas por simulación con datos pasados. No son asesoramiento financiero ni garantizan resultados. Con apalancamiento puedes perder todo el capital de la operación.</p>
+</main>
+
+<div class="sheet-bg" id="sheet-bg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="grab"></div>
+    <h3 id="sheet-title">Autorizar operación</h3>
+    <p class="sheet-sum" id="sheet-sum"></p>
+    <div class="dots" id="dots"></div>
+    <input id="pin-text" type="password" autocomplete="off" aria-label="PIN" class="pin-text" hidden>
+    <div class="keypad" id="keypad"></div>
+    <button class="kb-toggle" id="kb-toggle">Usar teclado (PIN con letras)</button>
+    <button class="authorize" id="confirm">CONFIRMAR Y EJECUTAR</button>
+    <button class="btn ghost" id="cancel">Cancelar</button>
+  </div>
+</div>
+
+<div class="login" id="login" hidden>
+  <form class="login-box" id="login-form">
+    <img src="/icons/icon-192.png" alt="">
+    <h3>Señales</h3>
+    <p class="muted">Introduce la contraseña de acceso.</p>
+    <input id="login-pass" type="password" autocomplete="current-password" placeholder="Contraseña" required>
+    <button class="authorize" type="submit">ENTRAR</button>
+  </form>
+</div>
+
+<div id="toast" role="status"></div>
+<script src="/app.js"></script>
+</body>
+</html>
