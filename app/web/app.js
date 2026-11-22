@@ -61,13 +61,16 @@ function render() {
   if (key !== sigKey) { sigKey = key; renderSignals(); }
   updateLive();
 
-  renderWallet(); renderOrders(); renderHistory(); renderEngine();
+  renderPerf(); renderWallet(); renderOrders(); renderHistory(); renderEngine();
   const c = S.config;
   $("#cfg").innerHTML = `<b>Señales:</b> velas de ${c.SIGNAL_INTERVAL} min, confirmadas con la tendencia de ${c.TREND_INTERVAL} min · stop ${c.SL_ATR} ATR (mín. ${c.MIN_STOP_PCT} %) ·
     objetivo ${c.TP_R}R · simulación a ${c.HORIZON_H} h · solo con ≥ ${c.MIN_EV_R}R esperado · caducan a los ${c.EXPIRES_MIN} min<br>
     <b>Filtros:</b> spread ≤ ${c.MAX_SPREAD_PCT} % · pausa si BTC se mueve > ${c.SHOCK_PCT} % en 15 min<br>
     <b>Riesgo:</b> ${c.RISK_PCT} % del capital por operación · apalancamiento máx. ${c.MAX_LEVERAGE}x · ${c.MAX_OPEN} posición a la vez ·
-    ${c.MAX_TRADES_DAY} operaciones/día · riesgo diario ≤ ${c.DAILY_RISK_PCT} %<br>
+    ${c.MAX_TRADES_DAY} operaciones/día · riesgo diario ≤ ${c.DAILY_RISK_PCT} % · aviso si una posición pasa de ${c.TIME_LIMIT_H} h<br>
+    <b>Protecciones:</b> pausa ${c.SL_GUARD_PAUSE_H} h tras ${c.SL_GUARD_N} pérdidas en ${c.SL_GUARD_HOURS} h ·
+    pausa si el capital cae > ${c.MAX_DRAWDOWN_PCT} % · ${c.COOLDOWN_MIN} min de espera por par tras cerrar<br>
+    <b>Pares:</b> volatilidad entre ${c.MIN_ATR_PCT} % y ${c.MAX_ATR_PCT} % por vela · mín. ${c.MIN_AGE_DAYS} días de historia<br>
     Notificaciones en ${S.push.devices} dispositivo(s)`;
 }
 
@@ -154,6 +157,20 @@ function tick() {
     const sec = Math.max(0, Math.round((new Date(el.dataset.exp) - Date.now()) / 1000));
     el.textContent = sec ? Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0") : "caducada";
   });
+}
+
+function renderPerf() {
+  const t = S.tracking;
+  if (!t) return;
+  const row = (name, x) => `<div class="perf-row">
+      <div><b>${name}</b><div class="m muted">${x.n} resueltas${x.pending ? " · " + x.pending + " en curso" : ""}</div></div>
+      ${x.n ? `<div class="perf-n"><span class="pos">${pc(x.target)}</span> obj. · <span class="neg">${pc(x.stop)}</span> stop
+        <div class="${x.avg_r >= 0 ? "pos" : "neg"}"><b>${x.avg_r >= 0 ? "+" : ""}${nf(x.avg_r, 2)}R</b> de media</div></div>`
+        : `<div class="perf-n muted">sin datos aún</div>`}</div>`;
+  $("#perf").innerHTML = row("Señales notificadas", t.notified) + row("Descartadas por el filtro", t.discarded) +
+    `<p class="m muted" style="margin:10px 0 0">Seguimiento automático con velas reales de qué habría pasado con cada señal
+     (como el «dry-run» de Freqtrade). Si las notificadas superan a las descartadas, el filtro está ayudando.
+     Se reinicia si el servidor se reinicia.</p>`;
 }
 
 function renderWallet() {

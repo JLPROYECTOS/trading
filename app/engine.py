@@ -23,6 +23,7 @@ import bybit
 import strategy as st
 
 SIGNALS_FILE = os.path.join(bybit.DATA_DIR, "signals.json")
+TRACK_FILE = os.path.join(bybit.DATA_DIR, "tracking.json")
 LOCK = threading.RLock()
 IGNORE_COINS = {"USDC", "USDT", "EUR", "PLN"}
 
@@ -93,6 +94,70 @@ def risk_check(cfg, lst, wallet, orders):
     return None, used
 
 
+# ------------------------------------------------------------------ protecciones (idea de Freqtrade)
+
+def protections(cfg, lst, equity_hist, pauses):
+    """Devuelve (motivo de pausa o None, pares en enfriamiento). Actualiza `pauses` {nombre: hasta_epoch}."""
+    t = time.time()
+    closed = [s for s in lst if s.get("status") == "closed" and s.get("closed_at")]
+
+    # StoplossGuard: demasiadas pérdidas seguidas en poco tiempo
+    win = t - float(cfg["SL_GUARD_HOURS"]) * 3600
+    losses = [datetime.fromisoformat(s["closed_at"]).timestamp() for s in closed
+              if float(s.get("pnl") or 0) < 0 and datetime.fromisoformat(s["closed_at"]).timestamp() > win]
+    if len(losses) >= int(cfg["SL_GUARD_N"]):
+        pauses["stoploss_guard"] = max(pauses.get("stoploss_guard", 0), max(losses) + float(cfg["SL_GUARD_PAUSE_H"]) * 3600)
+
+    # MaxDrawdown: el capital ha caído demasiado desde su máximo reciente
+    if equity_hist:
+        peak, cur = max(e for _, e in equity_hist), equity_hist[-1][1]
+        if peak > 0 and (peak - cur) / peak * 100 > float(cfg["MAX_DRAWDOWN_PCT"]):
+            pauses["max_drawdown"] = max(pauses.get("max_drawdown", 0), t + float(cfg["DRAWDOWN_PAUSE_H"]) * 3600)
+
+    names = {"stoploss_guard": "%s pérdidas en %s h" % (cfg["SL_GUARD_N"], cfg["SL_GUARD_HOURS"]),
+             "max_drawdown": "el capital cayó más de un %s %%" % cfg["MAX_DRAWDOWN_PCT"]}
+    active = [(k, until) for k, until in pauses.items() if until > t]
+    reason = None
+    if active:
+        k, until = max(active, key=lambda x: x[1])
+        reason = "Protección: %s (hasta las %s)" % (names[k], datetime.fromtimestamp(until).strftime("%H:%M"))
+
+    # CooldownPeriod: pares recién cerrados
+    cool = t - float(cfg["COOLDOWN_MIN"]) * 60
+    cooldown = {s["symbol"] for s in closed if datetime.fromisoformat(s["closed_at"]).timestamp() > cool}
+    return reason, cooldown
+
+
+# ------------------------------------------------------------------ seguimiento en vivo (dry-run)
+
+def load_tracking():
+    try:
+        with open(TRACK_FILE, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return []
+
+
+def save_tracking(lst):
+    os.makedirs(bybit.DATA_DIR, exist_ok=True)
+    tmp = TRACK_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(lst[-400:], fh, ensure_ascii=False)
+    os.replace(tmp, TRACK_FILE)
+
+
+def tracking_stats(lst):
+    out = {}
+    for kind in ("notified", "discarded"):
+        done = [x for x in lst if x["kind"] == kind and x.get("result")]
+        n = len(done)
+        out[kind] = {"n": n, "pending": sum(1 for x in lst if x["kind"] == kind and not x.get("result")),
+                     "target": sum(1 for x in done if x["result"] == "target") / n if n else 0,
+                     "stop": sum(1 for x in done if x["result"] == "stop") / n if n else 0,
+                     "avg_r": sum(x["r"] for x in done) / n if n else 0}
+    return out
+
+
 class Engine:
     def __init__(self, notify=None):
         self.notify = notify or (lambda *a, **k: None)
@@ -100,6 +165,8 @@ class Engine:
                        "detected": 0, "proposed": 0, "error": None, "discarded": [], "paused": None}
         self._last_bar = None
         self._wake = threading.Event()
+        self.equity_hist = []   # (epoch, capital) de los últimos 7 días
+        self.pauses = {}
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True, name="engine").start()
@@ -151,10 +218,19 @@ class Engine:
         if cfg.get("BYBIT_API_KEY"):
             wallet, orders = bybit.wallet(cfg), bybit.open_orders(cfg)
             self._monitor_closes(cfg, wallet)
+            self.equity_hist = [x for x in self.equity_hist if x[0] > time.time() - 7 * 86400]
+            self.equity_hist.append((time.time(), wallet["equity"]))
+        try:
+            self._update_tracking(cfg)
+        except Exception:  # noqa — el seguimiento nunca debe parar el motor
+            traceback.print_exc()
         with LOCK:
             lst = load_signals()
         busy = {s["symbol"] for s in lst if s["status"] in ("pending", "checking", "sending")}
         blocked, used_risk = (risk_check(cfg, lst, wallet, orders) if wallet else (None, 0))
+        protected, cooldown = protections(cfg, lst, self.equity_hist, self.pauses)
+        blocked = blocked or protected
+        tracked = []
 
         # Sobresalto del mercado (BTC)
         shock = None
@@ -189,6 +265,18 @@ class Engine:
                 if sym in busy:
                     drop("Ya hay una señal pendiente en este par")
                     continue
+                if sym in cooldown:
+                    drop("Enfriamiento: operación cerrada hace menos de %s min" % cfg["COOLDOWN_MIN"])
+                    continue
+                age_days = len(bars) * bybit.MINUTES[interval] / 1440
+                if age_days < float(cfg["MIN_AGE_DAYS"]):
+                    drop("Par con poca historia (%.1f días)" % age_days)
+                    continue
+                a_now = st.atr(bars[-200:]) or 0
+                atr_pct = a_now / bars[-1]["c"] * 100
+                if not float(cfg["MIN_ATR_PCT"]) <= atr_pct <= float(cfg["MAX_ATR_PCT"]):
+                    drop("Volatilidad fuera de rango (%.2f %% por vela)" % atr_pct)
+                    continue
                 if sym not in trend_cache:
                     trend_cache[sym] = st.trend(bybit.klines(cfg, sym, cfg["TREND_INTERVAL"], 120))
                 tr = trend_cache[sym]
@@ -205,9 +293,13 @@ class Engine:
                 sim["days"] = round(len(bars) * bybit.MINUTES[interval] / 1440, 1)
                 ok = (sim["ev_r"] >= float(cfg["MIN_EV_R"]) and sim["hist_n"] >= int(cfg["MIN_HIST_N"])
                       and sim["hist_ev_r"] > 0)
+                track = {"kind": "discarded", "symbol": sym, "rule": rule, "side": side, "entry": entry,
+                         "stop": stop, "target": target, "fee": fee, "steps": steps, "interval": interval,
+                         "t0": bars[-1]["t"] + bybit.MINUTES[interval] * 60000, "ev_r": sim["ev_r"]}
                 if not ok:
                     drop("Filtro: simulación %+.2fR · historia %+.2fR en %d casos" % (
                         sim["ev_r"], sim["hist_ev_r"], sim["hist_n"]))
+                    tracked.append(track)
                     continue
                 if not wallet:
                     drop("Sin claves de Bybit")
@@ -230,14 +322,66 @@ class Engine:
                           "Riesgo: sin posiciones abiertas · %d/%s operaciones hoy" % (
                               len(today_trades(lst)), cfg["MAX_TRADES_DAY"]),
                           "Simulación %+.2fR y la regla ganó en su historial (%+.2fR)" % (sim["ev_r"], sim["hist_ev_r"])]
+                checks.insert(3, "Protecciones: sin rachas de pérdidas ni caída de capital · par fuera de enfriamiento")
+                checks.insert(1, "Volatilidad %.2f %% por vela · %.0f días de historia" % (atr_pct, age_days))
                 self._propose(cfg, inst, rule, side, entry, stop, target, sz, equity, fee, sim, a, checks)
+                tracked.append(dict(track, kind="notified"))
                 busy.add(sym)
                 used_risk += loss
                 if wallet and len(busy) >= int(cfg["MAX_OPEN"]):
                     self.status["paused"] = "Ya hay una señal pendiente (máx. %s a la vez)" % cfg["MAX_OPEN"]
 
+        if tracked:
+            with LOCK:
+                save_tracking(load_tracking() + tracked)
         self.status["discarded"] = (discarded + self.status["discarded"])[:40]
         self.status["last_scan"] = iso(now())
+
+    # ------------------------------------------------------------------ seguimiento en vivo
+    def _update_tracking(self, cfg):
+        """Comprueba con velas reales qué pasó después de cada señal (objetivo, stop o ninguno)."""
+        with LOCK:
+            lst = load_tracking()
+        pending = [x for x in lst if not x.get("result")]
+        if not pending:
+            return
+        now_ms = time.time() * 1000
+        by_sym = {}
+        for x in pending:
+            by_sym.setdefault((x["symbol"], x["interval"]), []).append(x)
+        changed = False
+        for (sym, interval), items in by_sym.items():
+            per = bybit.MINUTES[interval] * 60000
+            oldest = min(x["t0"] for x in items)
+            n = int((now_ms - oldest) / per) + 2
+            if n < 2:
+                continue
+            bars = bybit.klines(cfg, sym, interval, min(1000, n))
+            for x in items:
+                after = [b for b in bars if b["t"] >= x["t0"]][:x["steps"]]
+                res, exitp = None, None
+                for b in after:
+                    hit = st._hit(x["side"], b["h"], b["l"], x["stop"], x["target"])
+                    if hit:
+                        res, exitp = hit, (x["stop"] if hit == "stop" else x["target"])
+                        break
+                if not res and len(after) >= x["steps"]:
+                    res, exitp = "open", after[-1]["c"]
+                if res:
+                    d = 1 if x["side"] == "long" else -1
+                    loss_u = abs(x["entry"] - x["stop"]) + x["fee"] * (x["entry"] + x["stop"])
+                    x["result"] = res
+                    x["r"] = (d * (exitp - x["entry"]) - x["fee"] * (x["entry"] + exitp)) / loss_u
+                    changed = True
+        if changed:
+            with LOCK:
+                cur = load_tracking()
+                done = {(x["symbol"], x["t0"], x["rule"], x["kind"]): x for x in lst if x.get("result")}
+                for y in cur:
+                    k = (y["symbol"], y["t0"], y["rule"], y["kind"])
+                    if k in done and not y.get("result"):
+                        y.update(result=done[k]["result"], r=done[k]["r"])
+                save_tracking(cur)
 
     # ------------------------------------------------------------------ aviso de cierre
     def _monitor_closes(self, cfg, wallet):
@@ -245,9 +389,18 @@ class Engine:
         changed = False
         with LOCK:
             lst = load_signals()
+            limit_h = float(cfg.get("TIME_LIMIT_H") or 0)
             for s in lst:
                 if s.get("status") != "filled":
                     continue
+                if limit_h and not s.get("time_warned") and s.get("approved_at"):
+                    age_h = (now() - datetime.fromisoformat(s["approved_at"])).total_seconds() / 3600
+                    if age_h > limit_h:
+                        s["time_warned"] = True
+                        changed = True
+                        self.notify(title="⏱️ %s lleva %.0f h abierta" % (s["base"], age_h),
+                                    body="Ha superado el tiempo previsto. El SL y el TP siguen puestos en Bybit; "
+                                         "si quieres cerrarla antes, hazlo desde Bybit.", tag="time-" + s["id"])
                 q = float(s.get("fill_qty") or s.get("qty") or 0)
                 c = coins.get(s["base"], {"amount": 0, "debt": 0})
                 if abs(c["amount"]) < 0.1 * q and c["debt"] < 0.1 * q:

@@ -45,6 +45,18 @@ DEFAULTS = {
     "MAX_OPEN": "1",          # posiciones abiertas a la vez
     "MAX_TRADES_DAY": "3",    # operaciones ejecutadas por día
     "DAILY_RISK_PCT": "25",   # suma máxima de pérdidas posibles (al stop) en el día, % del capital
+    # Protecciones (idea de Freqtrade "Protections")
+    "COOLDOWN_MIN": "60",     # CooldownPeriod: espera tras cerrar una operación en un par
+    "SL_GUARD_N": "2",        # StoplossGuard: nº de pérdidas...
+    "SL_GUARD_HOURS": "24",   # ...en estas horas...
+    "SL_GUARD_PAUSE_H": "6",  # ...pausan el motor estas horas
+    "MAX_DRAWDOWN_PCT": "20", # MaxDrawdown: caída máx. del capital desde su máximo reciente
+    "DRAWDOWN_PAUSE_H": "12",
+    # Filtros de pares (idea de Freqtrade "Pairlists")
+    "MIN_ATR_PCT": "0.08",    # VolatilityFilter: rango medio por vela mínimo (%)
+    "MAX_ATR_PCT": "1.5",     # ...y máximo (%)
+    "MIN_AGE_DAYS": "7",      # AgeFilter: días mínimos de historia del par
+    "TIME_LIMIT_H": "4",      # aviso si una posición lleva abierta más de estas horas
     "ENGINE": "on",
 }
 

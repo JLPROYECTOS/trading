@@ -63,6 +63,16 @@ Android (app instalada) ──HTTPS privado (Tailscale)──▶ tu PC: server.p
 | `SHOCK_PCT` | `1.5` | Pausa si BTC se mueve más de esto en 15 min. |
 | `MAX_OPEN` / `MAX_TRADES_DAY` | `1` / `3` | Posiciones a la vez y operaciones por día. |
 | `DAILY_RISK_PCT` | `25` | Suma máxima de pérdidas posibles en el día (% del capital). |
+| `COOLDOWN_MIN` | `60` | Espera por par tras cerrar una operación (idea de Freqtrade *CooldownPeriod*). |
+| `SL_GUARD_N` / `_HOURS` / `_PAUSE_H` | `2` / `24` / `6` | Pausa tras N pérdidas en X horas (*StoplossGuard*). |
+| `MAX_DRAWDOWN_PCT` / `DRAWDOWN_PAUSE_H` | `20` / `12` | Pausa si el capital cae desde su máximo reciente (*MaxDrawdown*). |
+| `MIN_ATR_PCT` / `MAX_ATR_PCT` | `0.08` / `1.5` | Volatilidad por vela permitida (*VolatilityFilter*). |
+| `MIN_AGE_DAYS` | `7` | Historia mínima del par (*AgeFilter*). |
+| `TIME_LIMIT_H` | `4` | Aviso si una posición pasa de estas horas abierta. |
+
+**Rendimiento en vivo:** la app sigue con velas reales cada señal notificada y cada descartada
+por el filtro, y muestra qué habría pasado (como el *dry-run* de Freqtrade). Ideas inspiradas en
+[Freqtrade](https://github.com/freqtrade/freqtrade); no se ha copiado su código (GPL-3.0).
 | `ENGINE` | `on` | `off` para parar el motor. |
 
 ## Seguridad
