@@ -264,6 +264,17 @@ $("#btn-push").onclick = async () => {
   const j = await post("/api/push/subscribe", {subscription: sub.toJSON()});
   toast(j.ok ? j.message : j.error, j.ok); load();
 };
+// Si el servidor se reinició y perdió las suscripciones, este dispositivo se vuelve a registrar solo.
+let resubDone = false;
+async function resubscribe() {
+  if (resubDone || !S || !S.push.available || S.push.devices || !("serviceWorker" in navigator)) return;
+  if (!window.isSecureContext || Notification.permission !== "granted") return;
+  resubDone = true;
+  try {
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (sub) await post("/api/push/subscribe", {subscription: sub.toJSON()});
+  } catch (_) {}
+}
 $("#btn-test").onclick = async () => { const j = await post("/api/push/test"); toast(j.ok ? j.message : j.error, j.ok); };
 $("#btn-scan").onclick = async () => { const j = await post("/api/scan"); toast(j.ok ? j.message : j.error, j.ok); setTimeout(load, 8000); };
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; $("#btn-install").hidden = false; });
@@ -275,7 +286,7 @@ async function load() {
   try {
     const r = await fetch("/api/state", {cache: "no-store", credentials: "same-origin"});
     if (r.status === 401) return showLogin();
-    S = await r.json(); render();
+    S = await r.json(); render(); resubscribe();
   }
   catch (e) { $("#alerts").innerHTML = `<div class="notice">No hay conexión con el PC. ¿Está encendido y con la app abierta?</div>`; }
 }

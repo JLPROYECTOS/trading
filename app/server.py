@@ -62,6 +62,19 @@ def vapid_public():
         os.makedirs(bybit.DATA_DIR, exist_ok=True)
         with open(VAPID_FILE, "w", encoding="utf-8") as fh:
             fh.write(os.environ["VAPID_PRIVATE_KEY"].replace("\\n", "\n"))
+    pw = bybit.load_env().get("APP_PASSWORD")
+    if not os.path.exists(VAPID_FILE) and pw:
+        # Servidor sin disco (Render gratis): clave estable derivada de APP_PASSWORD,
+        # para que las notificaciones sigan funcionando tras cada reinicio.
+        import hashlib
+        from cryptography.hazmat.primitives.asymmetric import ec
+        n = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+        d = int.from_bytes(hashlib.sha256(("vapid:" + pw).encode()).digest(), "big") % (n - 1) + 1
+        key = ec.derive_private_key(d, ec.SECP256R1())
+        os.makedirs(bybit.DATA_DIR, exist_ok=True)
+        with open(VAPID_FILE, "wb") as fh:
+            fh.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                       serialization.NoEncryption()))
     if not os.path.exists(VAPID_FILE):
         os.makedirs(bybit.DATA_DIR, exist_ok=True)
         v = Vapid01()

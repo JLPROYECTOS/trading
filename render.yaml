@@ -1,16 +1,13 @@
-# Render Blueprint: crea el servicio en Frankfurt (Bybit EU bloquea servidores de EE. UU.).
+# Render Blueprint (plan GRATIS): servicio en Frankfurt (Bybit EU bloquea servidores de EE. UU.).
 # Las claves se piden al crear el servicio (sync: false = no están en el repo).
+# El plan gratis se duerme sin visitas: .github/workflows/keepalive.yml lo visita cada 10 min.
 services:
   - type: web
     name: senales-trading
     runtime: docker
     region: frankfurt
-    plan: starter
+    plan: free
     healthCheckPath: /healthz
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: BYBIT_ENV
         value: eu

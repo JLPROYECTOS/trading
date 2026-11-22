@@ -1,4 +1,4 @@
-const CACHE = "senales-v2";
+const CACHE = "senales-v3";
 const SHELL = ["/", "/style.css", "/app.js", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", e => {
